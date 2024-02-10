@@ -1,0 +1,14 @@
+The Raspberry Pi Pico files in this directory come from the Raspberry Pi
+Foundation design files. These files/directories are:
+ - PicoW.stp
+ - RPi_Pico.kicad_sym
+ - RPi_Pico.pretty/
+
+These are governed by the LICENSE.raspberrypi license file. In summary,
+"Permission to use, copy, modify, and/or distribute this design for any purpose
+with or without fee is hereby granted." There are some exceptions, but I do not
+believe we are using any of the models/designs from other manufacturers that
+fall under those exceptions.
+
+The rest of the files are licensed under the CERN Open Hardware Licence Version
+2 - Weakly Reciprocal.
