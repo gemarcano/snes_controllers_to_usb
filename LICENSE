@@ -10,5 +10,9 @@ with or without fee is hereby granted." There are some exceptions, but I do not
 believe we are using any of the models/designs from other manufacturers that
 fall under those exceptions.
 
-The rest of the files are licensed under the CERN Open Hardware Licence Version
-2 - Weakly Reciprocal.
+The KiCAD PCB design files are licensed under the CERN Open Hardware Licence
+Version 2 - Weakly Reciprocal.
+
+The software under the firmware folder is licensed under the GPL v2.0 or later,
+or the LGPL v2.1 or later. More details can be found in the firmware/LICENSE
+file.
