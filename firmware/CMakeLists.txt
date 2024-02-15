@@ -14,7 +14,7 @@ add_executable(snes_controllers_to_usb
 	src/network_task.cpp
 	src/cli_task.cpp
 	src/FreeRTOS_support.cpp
-	src/usb_descriptors.c
+	src/usb_descriptors.cpp
 	src/syscalls.cpp
 )
 

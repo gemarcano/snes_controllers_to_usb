@@ -74,67 +74,94 @@ void watchdog_task(void*)
 
 struct controller_state
 {
-    int8_t x;        // x axis, [-127, 127]
-    int8_t y;        // y axis, [-127, 127]
-    uint8_t buttons; // buttons, 8 buttons
-    bool operator==(const controller_state&) const = default;
+	int8_t x;        // x axis, [-127, 127]
+	int8_t y;        // y axis, [-127, 127]
+	uint8_t buttons; // buttons, 8 buttons
+	bool operator==(const controller_state&) const = default;
 };
 
 // FreeRTOS task to handle polling controller and sending HID reports
 void hid_task(void *)
 {
-    TickType_t last = xTaskGetTickCount();
-    controller_state last_data{};
+	TickType_t last = xTaskGetTickCount();
+	controller_state last_data{};
 
 	std::random_device rdev;
 	std::uniform_int_distribution<uint8_t> dist(0u, 255u);
 	// FIXME wait for USB initialization
 
-    for (;;)
-    {
-        vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
-        if (!tud_hid_ready()) continue;
+	for (;;)
+	{
+		vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
+		if (tud_hid_n_ready(0))
+		{
+			controller_state data = {static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};//controller.read();
 
-        controller_state data = {static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};//controller.read();
+			// Remote wakeup only if it's suspended, and a button is pressed
+			if (tud_suspended() && (data.x || data.y || data.buttons))
+			{
+				// Host must allow waking up from this device for this to work
+				tud_remote_wakeup();
+			}
 
-        // Remote wakeup only if it's suspended, and a button is pressed
-        if (tud_suspended() && (data.x || data.y || data.buttons))
-        {
-            // Host must allow waking up from this device for this to work
-            tud_remote_wakeup();
-        }
+			// Only send a report if the data has changed
+			else if (last_data != data)
+			{
+				// Our report only has 3 bytes, don't assume the struct with the data has
+				// no padding, and don't use the no padding directive for structs-- last
+				// thing I want to deal with is misaligned data access on ARM
+				uint8_t buffer[3];
+				buffer[0] = data.x;
+				buffer[1] = data.y;
+				buffer[2] = data.buttons;
+				tud_hid_n_report(0, 0, &buffer, sizeof(buffer));
+				last_data = data;
+			}
+		}
 
-        // Only send a report if the data has changed
-        else if (last_data != data)
-        {
-            // Our report only has 3 bytes, don't assume the struct with the data has
-            // no padding, and don't use the no padding directive for structs-- last
-            // thing I want to deal with is misaligned data access on ARM
-            uint8_t buffer[3];
-            buffer[0] = data.x;
-            buffer[1] = data.y;
-            buffer[2] = data.buttons;
-            tud_hid_report(0, &buffer, sizeof(buffer));
-            last_data = data;
-        }
-    }
+		if (tud_hid_n_ready(1))
+		{
+			controller_state data = {static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};//controller.read();
+
+			// Remote wakeup only if it's suspended, and a button is pressed
+			if (tud_suspended() && (data.x || data.y || data.buttons))
+			{
+				// Host must allow waking up from this device for this to work
+				tud_remote_wakeup();
+			}
+
+			// Only send a report if the data has changed
+			else if (last_data != data)
+			{
+				// Our report only has 3 bytes, don't assume the struct with the data has
+				// no padding, and don't use the no padding directive for structs-- last
+				// thing I want to deal with is misaligned data access on ARM
+				uint8_t buffer[3];
+				buffer[0] = data.x;
+				buffer[1] = data.y;
+				buffer[2] = data.buttons;
+				tud_hid_n_report(1, 0, &buffer, sizeof(buffer));
+				last_data = data;
+			}
+		}
+	}
 }
 
 // FreeRTOS task to handle USB tasks
 void usb_device_task(void *)
 {
-    tusb_init();
-    for(;;)
-    {
-        tud_task();
-        // tud_cdc_connected() must be called in the same task as tud_task, as
-        // an internal data structure is shared without locking between both
-        // functions. See https://github.com/hathach/tinyusb/issues/1472
-        // As a workaround, use an atomic variable to get the result of this
-        // function, and read from it elsewhere
+	tusb_init();
+	for(;;)
+	{
+		tud_task();
+		// tud_cdc_connected() must be called in the same task as tud_task, as
+		// an internal data structure is shared without locking between both
+		// functions. See https://github.com/hathach/tinyusb/issues/1472
+		// As a workaround, use an atomic variable to get the result of this
+		// function, and read from it elsewhere
 		sctu::cdc.update();
-        taskYIELD();
-    }
+		taskYIELD();
+	}
 }
 
 void init_wifi(void*)

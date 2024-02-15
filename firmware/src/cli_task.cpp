@@ -4,11 +4,13 @@
 
 #include <cli_task.h>
 #include <log.h>
+#include <usb.h>
 
 #include <pico/unique_id.h>
 #include <pico/cyw43_arch.h>
 #include <pico/bootrom.h>
 #include <hardware/watchdog.h>
+#include <tusb.h>
 
 #include <cstdint>
 #include <cstdio>
@@ -56,6 +58,26 @@ static void run(const char* line)
 		TaskHandle_t handle = xTaskGetHandle("watchdog");
 		vTaskDelete(handle);
 		for(;;);
+	}
+
+	if (line[0] == 't')
+	{
+		printf("Trying to kill usb to reload config?\r\n");
+		tud_disconnect();
+		printf("USB disconnected\r\n");
+		vTaskDelay(5000);
+		tud_connect();
+		printf("USB reconnected\r\n");
+	}
+
+	if (line[0] == 'c')
+	{
+		printf("Current controllers: %d\r\n", get_active_controllers());
+		unsigned controllers;
+		sscanf(line + 2, "%u", &controllers);
+		reset_configuration(controllers);
+		vTaskDelay(1000);
+		printf("Updated controllers: %d\r\n", get_active_controllers());
 	}
 }
 
