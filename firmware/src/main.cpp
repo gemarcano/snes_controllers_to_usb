@@ -12,6 +12,7 @@
 #include <pico/cyw43_arch.h>
 #include <pico/bootrom.h>
 #include <hardware/watchdog.h>
+#include "hardware/structs/mpu.h"
 
 #include <lwip/netdb.h>
 
@@ -223,6 +224,15 @@ void init_task(void*)
 {
 	board_init();
 
+	// This is running on core 2, setup MPU to catch null pointer dereferences
+	mpu_hw->ctrl = 5; // enable mpu with background default map
+	mpu_hw->rbar = (0x0 & ~0xFFu)| M0PLUS_MPU_RBAR_VALID_BITS | 0;
+	mpu_hw->rasr =
+		1             // enable region
+		| (0x7 << 1)  // size 2^(7 + 1) = 256
+		| (0 << 8)    // Subregion disable-- don't disable any
+		| 0x10000000; // Disable instruction fetch, disallow all
+
 	// Initialize watchdog hardware
 	TaskHandle_t handle;
 	TaskHandle_t watch_handle;
@@ -252,6 +262,15 @@ extern "C" void vApplicationStackOverflowHook(
 
 int main()
 {
+	// This is running on core 1, setup MPU to catch null pointer dereferences
+	mpu_hw->ctrl = 5; // enable mpu with background default map
+	mpu_hw->rbar = (0x0 & ~0xFFu)| M0PLUS_MPU_RBAR_VALID_BITS | 0;
+	mpu_hw->rasr =
+		1             // enable region
+		| (0x7 << 1)  // size 2^(7 + 1) = 256
+		| (0 << 8)    // Subregion disable-- don't disable any
+		| 0x10000000; // Disable instruction fetch, disallow all
+
 	// Alright, based on reading the pico-sdk, it's pretty much just a bad idea
 	// to do ANYTHING outside of a FreeRTOS task when using FreeRTOS with the
 	// pico-sdk... just do all required initialization in the init task
