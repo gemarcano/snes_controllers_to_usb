@@ -22,6 +22,18 @@ static void run(const char* line)
 {
 	if (line[0] == 's')
 	{
+		printf("IP Address: %s\r\n", ip4addr_ntoa(netif_ip4_addr(netif_list)));
+		printf("default instance: 0x%p\r\n", netif_default);
+		printf("NETIF is up? %s\r\n", netif_is_up(netif_default) ? "yes" : "no");
+		printf("NETIF flags: 0x%02X\r\n", netif_default->flags);
+		printf("Wifi state: %d\r\n", cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA));
+
+		int32_t rssi = 0;
+		cyw43_wifi_get_rssi(&cyw43_state, &rssi);
+		printf("  RSSI: %ld\r\n", rssi);
+		uint32_t pm_state = 0;
+		cyw43_wifi_get_pm(&cyw43_state, &pm_state);
+		printf("power mode: 0x%08lX\r\n", pm_state);
 		printf("ticks: %lu\r\n", xTaskGetTickCount());
 		UBaseType_t number_of_tasks = uxTaskGetNumberOfTasks();
 		printf("Tasks active: %lu\r\n", number_of_tasks);

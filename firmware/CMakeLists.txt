@@ -16,6 +16,7 @@ add_executable(snes_controllers_to_usb
 	src/FreeRTOS_support.cpp
 	src/usb_descriptors.cpp
 	src/syscalls.cpp
+	src/wifi_management_task.cpp
 )
 
 target_link_libraries(snes_controllers_to_usb
