@@ -4,22 +4,19 @@
 
 #include <log.h>
 #include <server.h>
-#include <syslog.h>
-#include <tusb_config.h>
 #include <cdc.h>
 #include <controller.h>
 #include <wifi_management_task.h>
 #include <network_task.h>
 #include <cli_task.h>
+#include <usb.h>
 
-#include <pico/unique_id.h>
-#include <pico/cyw43_arch.h>
-#include <pico/bootrom.h>
 #include <hardware/watchdog.h>
-#include "hardware/structs/mpu.h"
+#include <hardware/structs/mpu.h>
 
 #include <lwip/netdb.h>
 
+#include <tusb_config.h>
 #include <tusb.h>
 #include <bsp/board_api.h>
 
@@ -27,12 +24,7 @@
 #include <queue.h>
 #include <task.h>
 
-#include <cstring>
-#include <ctime>
-#include <memory>
-#include <expected>
-#include <atomic>
-#include <algorithm>
+#include <cstdio>
 #include <random>
 
 using sctu::sys_log;
@@ -59,65 +51,51 @@ void watchdog_task(void*)
 void hid_task(void *)
 {
 	TickType_t last = xTaskGetTickCount();
-	sctu::controller_state last_data{};
 
 	std::random_device rdev;
 	std::uniform_int_distribution<uint8_t> dist(0u, 255u);
 	// FIXME wait for USB initialization
+	//
+	sctu::controller_state controllers[4] = {};
 
 	for (;;)
 	{
 		vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
-		if (tud_hid_n_ready(0))
+		// FIXME right now I'm simulating controllers. Ideally I want to be
+		// able to tell not just how many controllers are plugged in, but which
+		// ones.
+		for (uint8_t i = 0; i < 4; ++i)
 		{
-			sctu::controller_state data = {true, static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};//controller.read();
-
-			// Remote wakeup only if it's suspended, and a button is pressed
-			if (tud_suspended() && (data.x || data.y || data.buttons))
+			sctu::controller_state data {true, static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};
+			if (controllers[i].connected != data.connected)
 			{
-				// Host must allow waking up from this device for this to work
-				tud_remote_wakeup();
+				// FIXME notify USB subsystem to re-init config because we have
+				// a change in controller state
 			}
 
-			// Only send a report if the data has changed
-			else if (last_data != data)
+			if (data.connected && tud_hid_n_ready(i))
 			{
-				// Our report only has 3 bytes, don't assume the struct with the data has
-				// no padding, and don't use the no padding directive for structs-- last
-				// thing I want to deal with is misaligned data access on ARM
-				uint8_t buffer[3];
-				buffer[0] = data.x;
-				buffer[1] = data.y;
-				buffer[2] = data.buttons;
-				tud_hid_n_report(0, 0, &buffer, sizeof(buffer));
-				last_data = data;
-			}
-		}
+				// Remote wakeup only if it's suspended, and a button is pressed
+				if (tud_suspended() && (data.x || data.y || data.buttons))
+				{
+					// Host must allow waking up from this device for this to work
+					tud_remote_wakeup();
+				}
 
-		if (tud_hid_n_ready(1))
-		{
-			sctu::controller_state data = {true, static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};//controller.read();
-
-			// Remote wakeup only if it's suspended, and a button is pressed
-			if (tud_suspended() && (data.x || data.y || data.buttons))
-			{
-				// Host must allow waking up from this device for this to work
-				tud_remote_wakeup();
+				// Only send a report if the data has changed
+				else if (controllers[i] != data)
+				{
+					// Our report only has 3 bytes, don't assume the struct with the data has
+					// no padding, and don't use the no padding directive for structs-- last
+					// thing I want to deal with is misaligned data access on ARM
+					uint8_t buffer[3];
+					buffer[0] = data.x;
+					buffer[1] = data.y;
+					buffer[2] = data.buttons;
+					tud_hid_n_report(i, 0, &buffer, sizeof(buffer));
+				}
 			}
-
-			// Only send a report if the data has changed
-			else if (last_data != data)
-			{
-				// Our report only has 3 bytes, don't assume the struct with the data has
-				// no padding, and don't use the no padding directive for structs-- last
-				// thing I want to deal with is misaligned data access on ARM
-				uint8_t buffer[3];
-				buffer[0] = data.x;
-				buffer[1] = data.y;
-				buffer[2] = data.buttons;
-				tud_hid_n_report(1, 0, &buffer, sizeof(buffer));
-				last_data = data;
-			}
+			controllers[i] = data;
 		}
 	}
 }

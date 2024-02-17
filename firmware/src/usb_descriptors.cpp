@@ -174,13 +174,13 @@ void update_configuration(uint8_t number_of_controllers)
 		const uint8_t ep_addr = static_cast<uint8_t>(0x80 | (EPNUM_HID + i));
 		auto hid = std::to_array<uint8_t>({
 			TUD_HID_DESCRIPTOR(
-				itf_num,                 // interface number
-				5,                       // string index
-				HID_ITF_PROTOCOL_NONE,   // protocol
-				sizeof(desc_hid_report), // report descriptor length
-				ep_addr,                 // ep in & out address
-				CFG_TUD_HID_EP_BUFSIZE,  // size
-				10                       // polling interval
+				itf_num,                     // interface number
+				static_cast<uint8_t>(5 + i), // string index
+				HID_ITF_PROTOCOL_NONE,       // protocol
+				sizeof(desc_hid_report),     // report descriptor length
+				ep_addr,                     // ep in & out address
+				CFG_TUD_HID_EP_BUFSIZE,      // size
+				10                           // polling interval
 			),
 		});
 		desc_configuration.insert(
@@ -225,12 +225,15 @@ const uint8_t* tud_descriptor_configuration_cb(uint8_t index)
 // array of pointer to string descriptors
 const auto string_desc_arr = std::array
 {
-	u"\x0409",                                    // 0: is supported language is English (0x0409)
-	u"Marcano",                                   // 1: Manufacturer
-	u"SNES USB Converter",                        // 2: Product
-	u"002e004",                                   // 3: Serials, FIXME maybe this should be initialized on boot from STM32 specific data?
-	u"CDC",                                       // 4: CDC
-	u"SNES Controller",                           // 5: USB HID
+	u"\x0409",                             // 0: is supported language is English (0x0409)
+	u"Gabriel Marcano",                    // 1: Manufacturer
+	u"SNES Controllers to USB Converter",  // 2: Product
+	u"002e004",                            // 3: Serials, FIXME maybe this should be initialized on boot from STM32 specific data?
+	u"CDC",                                // 4: CDC
+	u"SNES Controller P1",                 // 5: USB HID
+	u"SNES Controller P2",                 // 6: USB HID
+	u"SNES Controller P3",                 // 7: USB HID
+	u"SNES Controller P4",                 // 8: USB HID
 };
 
 static uint16_t _desc_str[32];
