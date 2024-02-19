@@ -24,7 +24,9 @@
  *
  */
 
-#include "tusb.h"
+#include <tusb.h>
+
+#include <pico/unique_id.h>
 
 #include <array>
 #include <cstdint>
@@ -32,6 +34,10 @@
 #include <concepts>
 #include <vector>
 #include <atomic>
+#include <span>
+#include <sstream>
+#include <iomanip>
+#include <memory>
 
 // Gamepad Report Descriptor Template
 // with 8 buttons, 1 joysticks
@@ -107,7 +113,7 @@ const uint8_t* tud_descriptor_device_cb(void)
 // HID Report Descriptor
 //--------------------------------------------------------------------+
 
-auto desc_hid_report = std::to_array<uint8_t>
+const auto desc_hid_report = std::to_array<uint8_t>
 ({
 	SNES_HID_REPORT_DESC_GAMEPAD()
 });
@@ -117,6 +123,8 @@ auto desc_hid_report = std::to_array<uint8_t>
 // Descriptor contents must exist long enough for transfer to complete
 const uint8_t* tud_hid_descriptor_report_cb(uint8_t itf)
 {
+	// All HID descriptors have the same report, so we don't need to select
+	// between them
 	(void) itf;
 	return desc_hid_report.data();
 }
@@ -130,23 +138,35 @@ constexpr unsigned config_total_length(unsigned hid)
 	return TUD_CONFIG_DESC_LEN + (hid * TUD_HID_DESC_LEN) + TUD_CDC_DESC_LEN;
 }
 
-std::vector<uint8_t> desc_configuration;
+// We'll rebuild the descriptor manually, as the number of controllers plugged
+// in varies. The first two interfaces are for CDC, and then there are 0 to 4
+// controllers plugged in.
+static std::vector<uint8_t> desc_configuration;
 
 enum
 {
 	ITF_NUM_CDC,
 	ITF_NUM_CDC_DATA,
-	ITF_NUM_HID,
+	ITF_NUM_HID_BASE, // Controller 1 is +0, Controller 2 is +1, etc.
 };
 
-#define EPNUM_CDC_NOTIF   0x81
-#define EPNUM_CDC_OUT     0x02
-#define EPNUM_CDC_IN      0x82
-#define EPNUM_HID         0x03
+const constexpr int EPNUM_CDC_NOTIF = 0x81;
+const constexpr int EPNUM_CDC_OUT   = 0x02;
+const constexpr int EPNUM_CDC_IN    = 0x82;
+const constexpr int EPNUM_HID_BASE       = 0x03;
 
 void update_configuration(uint8_t number_of_controllers)
 {
+	// Clamp the maximum number of controllers to the maximum the USB library
+	// can manage for HID devices.
+	if (number_of_controllers > CFG_TUD_HID)
+		number_of_controllers = CFG_TUD_HID;
+
 	uint8_t total_interfaces = static_cast<uint8_t>(2 + number_of_controllers);
+
+	// Update the configuration descriptor. The first two interfaces are always
+	// the CDC control and data ones. If there are any controllers, they
+	// follow the CDC descriptors.
 	desc_configuration = std::vector<uint8_t> {
 		TUD_CONFIG_DESCRIPTOR(
 			1,                                          // config number
@@ -170,8 +190,8 @@ void update_configuration(uint8_t number_of_controllers)
 
 	for (uint8_t i = 0; i < number_of_controllers; ++i)
 	{
-		const uint8_t itf_num = static_cast<uint8_t>(ITF_NUM_HID + i);
-		const uint8_t ep_addr = static_cast<uint8_t>(0x80 | (EPNUM_HID + i));
+		const uint8_t itf_num = static_cast<uint8_t>(ITF_NUM_HID_BASE + i);
+		const uint8_t ep_addr = static_cast<uint8_t>(0x80 | (EPNUM_HID_BASE + i));
 		auto hid = std::to_array<uint8_t>({
 			TUD_HID_DESCRIPTOR(
 				itf_num,                     // interface number
@@ -188,6 +208,7 @@ void update_configuration(uint8_t number_of_controllers)
 	}
 }
 
+// Make this atomic so we can read it from any thread/task
 static std::atomic<uint8_t> active_controllers = 0;
 
 uint8_t get_active_controllers()
@@ -198,6 +219,8 @@ uint8_t get_active_controllers()
 #include <FreeRTOS.h>
 #include <task.h>
 
+// FIXME there should be some form of callback - notification that the
+// configuration is done, we shouldn't rely on a delay
 void reset_configuration(uint8_t controllers)
 {
 	if (controllers > CFG_TUD_HID)
@@ -213,6 +236,7 @@ void reset_configuration(uint8_t controllers)
 // Descriptor contents must exist long enough for transfer to complete
 const uint8_t* tud_descriptor_configuration_cb(uint8_t index)
 {
+	// we onnly have a single configuration
 	(void) index; // for multiple configurations
 	update_configuration(active_controllers);
 	return desc_configuration.data();
@@ -223,22 +247,39 @@ const uint8_t* tud_descriptor_configuration_cb(uint8_t index)
 //--------------------------------------------------------------------+
 
 // array of pointer to string descriptors
-const auto string_desc_arr = std::array
+constexpr auto string_desc_arr = std::array
 {
 	u"\x0409",                             // 0: is supported language is English (0x0409)
 	u"Gabriel Marcano",                    // 1: Manufacturer
 	u"SNES Controllers to USB Converter",  // 2: Product
-	u"002e004",                            // 3: Serials, FIXME maybe this should be initialized on boot from STM32 specific data?
+	u"",                                   // 3: Serials, dynamically generated
 	u"CDC",                                // 4: CDC
-	u"SNES Controller P1",                 // 5: USB HID
-	u"SNES Controller P2",                 // 6: USB HID
-	u"SNES Controller P3",                 // 7: USB HID
-	u"SNES Controller P4",                 // 8: USB HID
+	u"SNES Controller P1",                 // 5: USB HID, controller 1
+	u"SNES Controller P2",                 // 6: USB HID, controller 2
+	u"SNES Controller P3",                 // 7: USB HID, controller 3
+	u"SNES Controller P4",                 // 8: USB HID, controller 4
 };
 
-static uint16_t _desc_str[32];
+template<typename T>
+concept string_like = requires(const T& s)
+{
+	std::basic_string_view{s};
+};
 
-static auto to_little_endian(std::integral auto value)
+template<size_t s>
+constexpr size_t max_size(std::span<string_like auto, s> container)
+{
+	size_t max = 0;
+	for (const auto& elem : container)
+	{
+		auto view = std::basic_string_view{elem};
+		if (max < view.size())
+			max = view.size();
+	}
+	return max;
+}
+
+static constexpr auto to_little_endian(std::integral auto value)
 {
 	if constexpr (std::endian::native != std::endian::little)
 	{
@@ -250,31 +291,86 @@ static auto to_little_endian(std::integral auto value)
 	}
 }
 
+/** Helper to get Pico ID and ready it for USB strings use.
+ *
+ * Making it a singleton that gets evaluated lazily as the Pico ID is
+ * initialized during general construction and can run afoul of the static
+ * initialization fiasco issue.
+ */
+class pico_id
+{
+public:
+	static const std::array<uint16_t, PICO_UNIQUE_BOARD_ID_SIZE_BYTES*2>& get()
+	{
+		if (!id_)
+		{
+			id_.reset(new pico_id());
+		}
+		return id_->data;
+	}
+
+private:
+	static std::unique_ptr<pico_id> id_;
+
+	pico_id()
+	{
+		pico_unique_board_id_t id;
+		pico_get_unique_board_id(&id);
+		std::stringstream ss;
+		for (size_t i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES; ++i)
+		{
+			ss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(id.id[i]);
+		}
+
+		const auto id_string = ss.str();
+		for (size_t i = 0; i < id_string.length(); ++i)
+		{
+			data[i] = to_little_endian(static_cast<uint16_t>(id_string[i]));
+		}
+	}
+
+	std::array<uint16_t, PICO_UNIQUE_BOARD_ID_SIZE_BYTES*2> data;
+};
+std::unique_ptr<pico_id> pico_id::id_{nullptr};
+
+// Maximum USB string buffer size in 16 bit units
+constexpr size_t desc_max =
+	1 +
+	std::max(
+		max_size(std::span{string_desc_arr}),
+		static_cast<size_t>(2*PICO_UNIQUE_BOARD_ID_SIZE_BYTES)
+	)
+;
+
+// Long-lived buffer containing string to be sent over USB hardware.
+static std::array<uint16_t, desc_max> _desc_str;
+
 // Invoked when received GET STRING DESCRIPTOR request
 // Application return pointer to descriptor, whose contents must exist long enough for transfer to complete
 const uint16_t* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 {
+	// We only support enlgish, and I'm just going to send all text regardless
+	// of language id
 	(void) langid;
 
 	uint8_t chr_count = 0;
-	if (index == 0)
+	if (index == 3)
 	{
-		_desc_str[1] = to_little_endian(static_cast<uint16_t>(string_desc_arr[index][0]));
-		chr_count = 1;
+		static_assert(sizeof(pico_id::get()) < (sizeof(_desc_str) - 1));
+		memcpy(_desc_str.data() + 1, pico_id::get().data(), pico_id::get().size() * 2);
+		chr_count = pico_id::get().size();
 	}
 	else
 	{
 		// Note: the 0xEE index string is a Microsoft OS 1.0 Descriptors.
 		// https://docs.microsoft.com/en-us/windows-hardware/drivers/usbcon/microsoft-defined-usb-descriptors
 
-		if (index > string_desc_arr.size()) return nullptr;
+		if (index > string_desc_arr.size())
+			return nullptr;
 
 		const std::u16string_view str = string_desc_arr[index];
 
-		// Cap at max char
 		chr_count = str.length();
-		if (chr_count > 31)
-			chr_count = 31;
 
 		for(uint8_t i = 0; i < chr_count; ++i)
 		{
@@ -285,7 +381,7 @@ const uint16_t* tud_descriptor_string_cb(uint8_t index, uint16_t langid)
 	// first byte is length (including header), second byte is string type
 	_desc_str[0] = (TUSB_DESC_STRING << 8) | (2 * chr_count + 2);
 
-	return _desc_str;
+	return _desc_str.data();
 }
 
 // Invoked when received GET_REPORT control request

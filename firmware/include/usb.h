@@ -7,7 +7,11 @@
 
 #include <cstdint>
 
-/** Gets the number of configured USB HID controllers.
+/** Returns the number of configured USB HID controllers.
+ *
+ * It is safe to call this from threads other than the USB one.
+ *
+ * @returns The number of configured controllers.
  */
 uint8_t get_active_controllers();
 
