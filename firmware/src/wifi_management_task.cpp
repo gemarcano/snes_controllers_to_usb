@@ -93,9 +93,10 @@ namespace sctu
 		for(;;)
 		{
 			int current_state = cyw43_wifi_link_status(&cyw43_state, CYW43_ITF_STA);
-			if (current_state != CYW43_LINK_JOIN)
+			if (current_state != CYW43_LINK_JOIN || !(netif_default->flags & NETIF_FLAG_LINK_UP))
 			{
 				sys_log.push(std::format("wifi: state is bad? {}", current_state));
+				sys_log.push(std::format("wifi: or is it flags? {:#02x}", netif_default->flags));
 				if (current_state != CYW43_LINK_DOWN)
 				{
 					sys_log.push(std::format("wifi: disconnecting from network"));
