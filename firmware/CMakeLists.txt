@@ -17,6 +17,7 @@ add_executable(snes_controllers_to_usb
 	src/usb_descriptors.cpp
 	src/syscalls.cpp
 	src/wifi_management_task.cpp
+	src/watchdog.cpp
 )
 
 target_link_libraries(snes_controllers_to_usb
