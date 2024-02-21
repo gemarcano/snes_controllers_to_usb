@@ -34,6 +34,26 @@ void print_callback(std::string_view str)
 	printf("syslog: %.*s\r\n", str.size(), str.data());
 }
 
+std::atomic_int watchdog_cpu0_status = 0;
+void watchdog_cpu0_task(void*)
+{
+	for(;;)
+	{
+		watchdog_cpu0_status = 1;
+		vTaskDelay(50);
+	}
+}
+
+std::atomic_int watchdog_cpu1_status = 0;
+void watchdog_cpu1_task(void*)
+{
+	for(;;)
+	{
+		watchdog_cpu1_status = 1;
+		vTaskDelay(50);
+	}
+}
+
 void watchdog_task(void*)
 {
 	// The watchdog period needs to be long enough so long lock periods
@@ -42,8 +62,13 @@ void watchdog_task(void*)
 	watchdog_enable(200, true);
 	for(;;)
 	{
-		watchdog_update();
-		vTaskDelay(50);
+		if (watchdog_cpu1_status && watchdog_cpu0_status)
+		{
+			watchdog_update();
+			watchdog_cpu0_status = 0;
+			watchdog_cpu1_status = 0;
+		}
+		vTaskDelay(30);
 	}
 }
 
@@ -117,11 +142,8 @@ void usb_device_task(void *)
 	}
 }
 
-void init_task(void*)
+static void initialize_mpu()
 {
-	board_init();
-
-	// This is running on core 2, setup MPU to catch null pointer dereferences
 	mpu_hw->ctrl = 5; // enable mpu with background default map
 	mpu_hw->rbar = (0x0 & ~0xFFu)| M0PLUS_MPU_RBAR_VALID_BITS | 0;
 	mpu_hw->rasr =
@@ -129,13 +151,30 @@ void init_task(void*)
 		| (0x7 << 1)  // size 2^(7 + 1) = 256
 		| (0 << 8)    // Subregion disable-- don't disable any
 		| 0x10000000; // Disable instruction fetch, disallow all
+}
+
+void init_task(void*)
+{
+	board_init();
+
+	// This is running on core 2, setup MPU to catch null pointer dereferences
+	initialize_mpu();
 
 	// Initialize watchdog hardware
 	TaskHandle_t handle;
-	TaskHandle_t watch_handle;
-	// Watchdog priority is higher!
-	xTaskCreate(watchdog_task, "watchdog", 256, nullptr, tskIDLE_PRIORITY+2, &watch_handle);
-	vTaskCoreAffinitySet(watch_handle, (1 << 0) );
+
+	// Watchdog priority is higher
+	// Dedicated watchdog tasks on each core, and have a central watchdog task
+	// aggregate the watchdog flags from both other tasks.
+	// If one core locks up, the central task will detect it and not pet the
+	// watchdog, or it will itself be hung, leading to a system reset.
+	xTaskCreate(watchdog_cpu0_task, "watchdog_cpu0", 256, nullptr, tskIDLE_PRIORITY+2, &handle);
+	vTaskCoreAffinitySet(handle, (1 << 0) );
+	xTaskCreate(watchdog_cpu1_task, "watchdog_cpu1", 256, nullptr, tskIDLE_PRIORITY+2, &handle);
+	vTaskCoreAffinitySet(handle, (1 << 1) );
+	xTaskCreate(watchdog_task, "watchdog", 256, nullptr, tskIDLE_PRIORITY+2, &handle);
+	vTaskCoreAffinitySet(handle, (1 << 0) | (1 << 1) );
+
 	sys_log.register_push_callback(print_callback);
 
 	// Anything USB related needs to be on the same core-- just use core 2
@@ -161,13 +200,7 @@ extern "C" void vApplicationStackOverflowHook(
 int main()
 {
 	// This is running on core 1, setup MPU to catch null pointer dereferences
-	mpu_hw->ctrl = 5; // enable mpu with background default map
-	mpu_hw->rbar = (0x0 & ~0xFFu)| M0PLUS_MPU_RBAR_VALID_BITS | 0;
-	mpu_hw->rasr =
-		1             // enable region
-		| (0x7 << 1)  // size 2^(7 + 1) = 256
-		| (0 << 8)    // Subregion disable-- don't disable any
-		| 0x10000000; // Disable instruction fetch, disallow all
+	initialize_mpu();
 
 	// Alright, based on reading the pico-sdk, it's pretty much just a bad idea
 	// to do ANYTHING outside of a FreeRTOS task when using FreeRTOS with the
