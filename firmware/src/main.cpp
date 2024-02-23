@@ -34,6 +34,19 @@ void print_callback(std::string_view str)
 	printf("syslog: %.*s\r\n", str.size(), str.data());
 }
 
+class random_controller : public sctu::controller
+{
+public:
+	sctu::controller_state poll() override
+	{
+		return sctu::controller_state{true, static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};
+	}
+
+private:
+	std::random_device rdev;
+	std::uniform_int_distribution<uint8_t> dist{0u, 255u};
+};
+
 // FreeRTOS task to handle polling controller and sending HID reports
 void hid_task(void *)
 {
@@ -43,7 +56,13 @@ void hid_task(void *)
 	std::uniform_int_distribution<uint8_t> dist(0u, 255u);
 	// FIXME wait for USB initialization
 	//
-	sctu::controller_state controllers[4] = {};
+	std::array<sctu::controller_state, 4> last_state = {};
+	std::array<std::unique_ptr<sctu::controller>, 4> controllers{
+		std::make_unique<random_controller>(),
+		std::make_unique<random_controller>(),
+		std::make_unique<random_controller>(),
+		std::make_unique<random_controller>()
+	};
 
 	for (;;)
 	{
@@ -53,8 +72,11 @@ void hid_task(void *)
 		// ones.
 		for (uint8_t i = 0; i < 4; ++i)
 		{
-			sctu::controller_state data {true, static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};
-			if (controllers[i].connected != data.connected)
+			if (!controllers[i])
+				continue;
+
+			sctu::controller_state data = controllers[i]->poll();
+			if (last_state[i].connected != data.connected)
 			{
 				// FIXME notify USB subsystem to re-init config because we have
 				// a change in controller state
@@ -70,7 +92,7 @@ void hid_task(void *)
 				}
 
 				// Only send a report if the data has changed
-				else if (controllers[i] != data)
+				else if (last_state[i] != data)
 				{
 					// Our report only has 3 bytes, don't assume the struct with the data has
 					// no padding, and don't use the no padding directive for structs-- last
@@ -82,7 +104,7 @@ void hid_task(void *)
 					tud_hid_n_report(i, 0, &buffer, sizeof(buffer));
 				}
 			}
-			controllers[i] = data;
+			last_state[i] = data;
 		}
 	}
 }

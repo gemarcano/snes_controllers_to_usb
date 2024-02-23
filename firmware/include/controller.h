@@ -17,6 +17,18 @@ namespace sctu
 		uint8_t buttons; // buttons, 8 buttons
 		bool operator==(const controller_state&) const = default;
 	};
+
+	class controller
+	{
+	public:
+		virtual controller_state poll() = 0;
+	};
+
+	class network_controller: public controller
+	{
+	public:
+		controller_state poll() override;
+	};
 }
 
 #endif//SCTU_CONTROLLER_H_
