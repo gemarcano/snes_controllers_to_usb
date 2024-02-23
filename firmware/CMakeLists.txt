@@ -24,7 +24,7 @@ target_link_libraries(snes_controllers_to_usb
 	pico_cyw43_arch_lwip_sys_freertos
 	pico_stdlib
 	pico_rand
-	FreeRTOS-Kernel-Heap3
+	FreeRTOS-Kernel-Heap4
 	tinyusb_device
 	tinyusb_board
 )
