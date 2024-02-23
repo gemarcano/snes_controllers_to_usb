@@ -20,14 +20,23 @@ extern int errno;
 
 // Just hang if we call a pure virtual function, the default implementation
 // relies on too much stuff
-extern "C" void __cxa_pure_virtual() { for(;;); }
+extern "C" void __cxa_pure_virtual()
+{
+	for(;;)
+	{
+		__asm__ __volatile__ ("bkpt #0");
+	}
+}
 
 // Also just hang if we get to the __verbose_terminate_handler
 namespace __gnu_cxx
 {
 	void __verbose_terminate_handler()
 	{
-		for (;;);
+		for (;;)
+		{
+			__asm__ __volatile__ ("bkpt #0");
+		}
 	}
 }
 
