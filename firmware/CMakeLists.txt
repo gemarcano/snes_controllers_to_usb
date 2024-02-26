@@ -20,6 +20,10 @@ add_executable(snes_controllers_to_usb
 	src/watchdog.cpp
 )
 
+pico_generate_pio_header(snes_controllers_to_usb
+	${CMAKE_CURRENT_LIST_DIR}/src/controllers.pio
+)
+
 target_link_libraries(snes_controllers_to_usb
 	pico_cyw43_arch_lwip_sys_freertos
 	pico_stdlib

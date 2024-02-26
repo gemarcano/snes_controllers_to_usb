@@ -1,0 +1,133 @@
+; SPDX-License-Identifier: GPL-2.0-or-later OR LGPL-2.1-or-later
+; SPDX-FileCopyrightText: Gabriel Marcano, 2024
+
+; GPIO0 - CLK
+; CPIO1 - LATCH
+
+; Then for N controllers:
+;  GPIO 2 + (3*N) - DATA0
+;  GPIO 3 + (3*N) - DATA1
+;  GPIO 4 + (3*N) - IOBIT
+
+; Basic algorithm
+; Clock is high idle
+; Send a latch pulse
+; for 16 bits
+;   read DATA0, DATA1 (so... that's 2 bits of data per clock, total 32).
+;   clock low
+;   clock high
+
+; SNES normally has a period of 24us when clocking data, latch is 12us wide.
+; at 12us period, that's 83333 Hz
+; With rp2040 clocked at 125MHz, 1/100 gets us 15 cycles per 12us period.
+
+.program controller0
+.side_set 1 ; CLK
+
+; Initial state, CLK high, latch low
+
+.wrap_target
+; Wait for trigger from software
+pull			side 1
+irq 4			side 1
+
+; Trigger latch, keep CLK high
+set pins, 1 [14]	side 1
+set pins, 0 [13]	side 1
+
+; setup counter for 16 shifts
+set x, 16		side 1
+
+read_loop:
+in pins, 2 [15]		side 0
+jmp x-- read_loop [15]	side 1
+
+push			side 1
+
+.wrap
+
+.program controllers1_3
+.wrap_target
+wait 1 irq 4 		[1]
+
+set x, 16
+
+read_loop:
+in pins, 2 [15]
+jmp x-- read_loop [15]
+
+push
+
+.wrap
+
+% c-sdk {
+#include <hardware/gpio.h>
+static inline void pio_controller_init(
+	PIO pio,
+	uint sm,
+	uint offset,
+	uint pin,
+	float freq)
+{
+
+	uint input_pins;
+	pio_sm_config config;
+	if (sm == 0)
+	{
+		const uint clk_pin = pin;
+		const uint latch_pin = pin + 1;
+		config = controller0_program_get_default_config(offset);
+		sm_config_set_out_pins(&config, latch_pin, 1);
+		sm_config_set_sideset_pins(&config, clk_pin);
+
+		input_pins = pin + 2;
+		pio_sm_set_pins_with_mask(pio, sm, 0b01, (1u << latch_pin) | (1u << clk_pin));
+		pio_sm_set_pindirs_with_mask(pio, sm,
+			(1u << latch_pin) | (1u << clk_pin),
+			(0xFu << clk_pin) // 4 bits, 2 data, 2 output
+		);
+
+		for (size_t i = 0; i < 4; ++i)
+		{
+			pio_gpio_init(pio, pin + i);
+			hw_set_bits(&pio->input_sync_bypass, 1u << (pin + i));
+		}
+	}
+	else
+	{
+		config = controllers1_3_program_get_default_config(offset);
+		input_pins = pin;
+
+		pio_sm_set_pindirs_with_mask(pio, sm, 0,
+			(0x3u << input_pins) // 2 bits, 2 data
+		);
+
+		for (size_t i = 0; i < 2; ++i)
+		{
+			pio_gpio_init(pio, pin + i);
+			hw_set_bits(&pio->input_sync_bypass, 1u << (pin + i));
+		}
+
+	}
+
+	sm_config_set_in_pins(&config, input_pins);
+	sm_config_set_in_shift(&config, false, true, 16);
+	sm_config_set_clkdiv(&config, freq);
+
+	pio_sm_init(pio, sm, offset, &config);
+}
+
+static inline void pio_controllers_init(
+	PIO pio,
+	uint offset0,
+	uint offset1,
+	uint pin,
+	float freq) //e.g. 0.01
+{
+	pio_controller_init(pio, 0, offset0, pin, freq);
+	pio_controller_init(pio, 1, offset1, pin + 5, freq);
+	pio_controller_init(pio, 2, offset1, pin + 8, freq);
+	pio_controller_init(pio, 3, offset1, pin + 11, freq);
+	pio_enable_sm_mask_in_sync(pio, 0xF);
+}
+%}
