@@ -5,6 +5,8 @@
 #ifndef SCTU_CONTROLLER_H_
 #define SCTU_CONTROLLER_H_
 
+#include <cstdint>
+
 namespace sctu
 {
 	/** Represents SNES controller state.

@@ -16,8 +16,11 @@
 #include <cstdio>
 #include <algorithm>
 
+#include <pio_controller.h>
+
 using sctu::sys_log;
 
+static sctu::pio_controllers controllers(pio0);
 static void run(const char* line)
 {
 	if (line[0] == 's')
@@ -74,12 +77,8 @@ static void run(const char* line)
 
 	if (line[0] == 't')
 	{
-		printf("Trying to kill usb to reload config?\r\n");
-		tud_disconnect();
-		printf("USB disconnected\r\n");
-		vTaskDelay(5000);
-		tud_connect();
-		printf("USB reconnected\r\n");
+		printf("trigger...\r\n");
+		controllers.trigger();
 	}
 
 	if (line[0] == 'c')

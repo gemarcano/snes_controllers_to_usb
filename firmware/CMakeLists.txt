@@ -40,6 +40,11 @@ target_compile_options(snes_controllers_to_usb PRIVATE
 	-Wno-psabi
 )
 
+target_compile_definitions(snes_controllers_to_usb PRIVATE
+	PICO_DEFAULT_UART_TX_PIN=18
+	PICO_DEFAULT_UART_RX_PIN=19
+)
+
 target_include_directories(snes_controllers_to_usb PRIVATE
 	${CMAKE_SOURCE_DIR}/include
 )

@@ -36,13 +36,11 @@ set pins, 1 [14]	side 1
 set pins, 0 [13]	side 1
 
 ; setup counter for 16 shifts
-set x, 16		side 1
+set x, 15		side 1
 
 read_loop:
 in pins, 2 [15]		side 0
 jmp x-- read_loop [15]	side 1
-
-push			side 1
 
 .wrap
 
@@ -50,13 +48,11 @@ push			side 1
 .wrap_target
 wait 1 irq 4 		[1]
 
-set x, 16
+set x, 15
 
 read_loop:
 in pins, 2 [15]
 jmp x-- read_loop [15]
-
-push
 
 .wrap
 
@@ -77,11 +73,13 @@ static inline void pio_controller_init(
 		const uint clk_pin = pin;
 		const uint latch_pin = pin + 1;
 		config = controller0_program_get_default_config(offset);
-		sm_config_set_out_pins(&config, latch_pin, 1);
+		sm_config_set_set_pins(&config, latch_pin, 1);
 		sm_config_set_sideset_pins(&config, clk_pin);
 
 		input_pins = pin + 2;
-		pio_sm_set_pins_with_mask(pio, sm, 0b01, (1u << latch_pin) | (1u << clk_pin));
+		pio_sm_set_pins_with_mask(pio, sm,
+			(1u << clk_pin),
+			(1u << latch_pin) | (1u << clk_pin));
 		pio_sm_set_pindirs_with_mask(pio, sm,
 			(1u << latch_pin) | (1u << clk_pin),
 			(0xFu << clk_pin) // 4 bits, 2 data, 2 output
@@ -90,7 +88,12 @@ static inline void pio_controller_init(
 		for (size_t i = 0; i < 4; ++i)
 		{
 			pio_gpio_init(pio, pin + i);
-			hw_set_bits(&pio->input_sync_bypass, 1u << (pin + i));
+			// Enable pull-downs on all pins set for input
+			if (i > 2)
+			{
+				gpio_set_pulls(pin + i, false, true);
+				hw_set_bits(&pio->input_sync_bypass, 1u << (pin + i));
+			}
 		}
 	}
 	else
@@ -98,20 +101,22 @@ static inline void pio_controller_init(
 		config = controllers1_3_program_get_default_config(offset);
 		input_pins = pin;
 
-		pio_sm_set_pindirs_with_mask(pio, sm, 0,
+		pio_sm_set_pindirs_with_mask(pio, sm,
+			0,
 			(0x3u << input_pins) // 2 bits, 2 data
 		);
 
 		for (size_t i = 0; i < 2; ++i)
 		{
 			pio_gpio_init(pio, pin + i);
+			// Enable pull-downs on all pins set for input
+			gpio_set_pulls(pin + i, false, true);
 			hw_set_bits(&pio->input_sync_bypass, 1u << (pin + i));
 		}
-
 	}
 
 	sm_config_set_in_pins(&config, input_pins);
-	sm_config_set_in_shift(&config, false, true, 16);
+	sm_config_set_in_shift(&config, false, true, 32);
 	sm_config_set_clkdiv(&config, freq);
 
 	pio_sm_init(pio, sm, offset, &config);
