@@ -38,6 +38,7 @@
 #include <sstream>
 #include <iomanip>
 #include <memory>
+#include <bit>
 
 // Gamepad Report Descriptor Template
 // with 8 buttons, 1 joysticks
@@ -155,14 +156,14 @@ const constexpr int EPNUM_CDC_OUT   = 0x02;
 const constexpr int EPNUM_CDC_IN    = 0x82;
 const constexpr int EPNUM_HID_BASE       = 0x03;
 
-void update_configuration(uint8_t number_of_controllers)
+void update_configuration(uint8_t controller_bitmask)
 {
 	// Clamp the maximum number of controllers to the maximum the USB library
 	// can manage for HID devices.
-	if (number_of_controllers > CFG_TUD_HID)
-		number_of_controllers = CFG_TUD_HID;
+	controller_bitmask &= ((1u << CFG_TUD_HID) - 1);
 
-	uint8_t total_interfaces = static_cast<uint8_t>(2 + number_of_controllers);
+	const unsigned number_of_controllers = std::popcount(controller_bitmask);
+	const uint8_t total_interfaces = static_cast<uint8_t>(2 + number_of_controllers);
 
 	// Update the configuration descriptor. The first two interfaces are always
 	// the CDC control and data ones. If there are any controllers, they
@@ -188,10 +189,18 @@ void update_configuration(uint8_t number_of_controllers)
 		),
 	};
 
-	for (uint8_t i = 0; i < number_of_controllers; ++i)
+	// Correctly attribute the string index to the interface based on the
+	// actual controller bit enabled
+	// To do that, we need to track both the controller index (i), and the
+	// number of the interfaces that need to be configured (count).
+	for (uint8_t i = 0, count = 0; i < 4; ++i)
 	{
-		const uint8_t itf_num = static_cast<uint8_t>(ITF_NUM_HID_BASE + i);
-		const uint8_t ep_addr = static_cast<uint8_t>(0x80 | (EPNUM_HID_BASE + i));
+		// Skip if the controller is not enabled
+		if (!((controller_bitmask >> i) & 1))
+			continue;
+
+		const uint8_t itf_num = static_cast<uint8_t>(ITF_NUM_HID_BASE + count);
+		const uint8_t ep_addr = static_cast<uint8_t>(0x80 | (EPNUM_HID_BASE + count));
 		auto hid = std::to_array<uint8_t>({
 			TUD_HID_DESCRIPTOR(
 				itf_num,                     // interface number
@@ -205,13 +214,14 @@ void update_configuration(uint8_t number_of_controllers)
 		});
 		desc_configuration.insert(
 			std::end(desc_configuration), std::begin(hid), std::end(hid));
+		++count;
 	}
 }
 
 // Make this atomic so we can read it from any thread/task
 static std::atomic<uint8_t> active_controllers = 0;
 
-uint8_t get_active_controllers()
+uint8_t usb_get_active_controllers()
 {
 	return active_controllers;
 }
@@ -219,14 +229,32 @@ uint8_t get_active_controllers()
 #include <FreeRTOS.h>
 #include <task.h>
 
-// FIXME there should be some form of callback - notification that the
-// configuration is done, we shouldn't rely on a delay
-void reset_configuration(uint8_t controllers)
+void usb_enable_controller(uint8_t controller)
 {
-	if (controllers > CFG_TUD_HID)
-		controllers = CFG_TUD_HID;
-	active_controllers = controllers;
+	uint8_t active = active_controllers;
+	controller &= 0xF; // Just 4 controllers
+	if (controller & active)
+		return;
+	active |= controller;
+	active_controllers = active;
+
 	tud_disconnect();
+	// FIXME is there a better way to know when we're disconnected?
+	vTaskDelay(100);
+	tud_connect();
+}
+
+void usb_disable_controller(uint8_t controller)
+{
+	uint8_t active = active_controllers;
+	controller &= 0xF; // Just 4 controllers
+	if ((controller & active) == 0)
+		return;
+	active &= ~controller;
+	active_controllers = active;
+
+	tud_disconnect();
+	// FIXME is there a better way to know when we're disconnected?
 	vTaskDelay(100);
 	tud_connect();
 }

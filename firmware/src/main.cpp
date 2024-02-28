@@ -11,6 +11,7 @@
 #include <cli_task.h>
 #include <usb.h>
 #include <watchdog.h>
+#include <pio_controllers.h>
 
 #include <hardware/structs/mpu.h>
 
@@ -51,60 +52,48 @@ private:
 void hid_task(void *)
 {
 	TickType_t last = xTaskGetTickCount();
+	sctu::pio_controllers controllers(pio0);
 
-	std::random_device rdev;
-	std::uniform_int_distribution<uint8_t> dist(0u, 255u);
 	// FIXME wait for USB initialization
 	//
 	std::array<sctu::controller_state, 4> last_state = {};
-	std::array<std::unique_ptr<sctu::controller>, 4> controllers{
-		std::make_unique<random_controller>(),
-		std::make_unique<random_controller>(),
-		std::make_unique<random_controller>(),
-		std::make_unique<random_controller>()
-	};
-
 	for (;;)
 	{
 		vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
-		// FIXME right now I'm simulating controllers. Ideally I want to be
-		// able to tell not just how many controllers are plugged in, but which
-		// ones.
+		std::array<sctu::controller_state, 4> state = controllers.poll();
 		for (uint8_t i = 0; i < 4; ++i)
 		{
-			if (!controllers[i])
-				continue;
-
-			sctu::controller_state data = controllers[i]->poll();
-			if (last_state[i].connected != data.connected)
+			if (last_state[i].connected != state[i].connected)
 			{
-				// FIXME notify USB subsystem to re-init config because we have
-				// a change in controller state
+				if (state[i].connected)
+					usb_enable_controller(1 << i);
+				else
+					usb_disable_controller(1 << i);
 			}
 
-			if (data.connected && tud_hid_n_ready(i))
+			if (state[i].connected && tud_hid_n_ready(i))
 			{
 				// Remote wakeup only if it's suspended, and a button is pressed
-				if (tud_suspended() && (data.x || data.y || data.buttons))
+				if (tud_suspended() && (state[i].x || state[i].y || state[i].buttons))
 				{
 					// Host must allow waking up from this device for this to work
 					tud_remote_wakeup();
 				}
 
 				// Only send a report if the data has changed
-				else if (last_state[i] != data)
+				else if (last_state[i] != state[i])
 				{
 					// Our report only has 3 bytes, don't assume the struct with the data has
 					// no padding, and don't use the no padding directive for structs-- last
 					// thing I want to deal with is misaligned data access on ARM
 					uint8_t buffer[3];
-					buffer[0] = data.x;
-					buffer[1] = data.y;
-					buffer[2] = data.buttons;
+					buffer[0] = state[i].x;
+					buffer[1] = state[i].y;
+					buffer[2] = state[i].buttons;
 					tud_hid_n_report(i, 0, &buffer, sizeof(buffer));
 				}
 			}
-			last_state[i] = data;
+			last_state[i] = state[i];
 		}
 	}
 }

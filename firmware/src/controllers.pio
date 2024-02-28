@@ -89,7 +89,7 @@ static inline void pio_controller_init(
 		{
 			pio_gpio_init(pio, pin + i);
 			// Enable pull-downs on all pins set for input
-			if (i > 2)
+			if (i >= 2)
 			{
 				gpio_set_pulls(pin + i, false, true);
 				hw_set_bits(&pio->input_sync_bypass, 1u << (pin + i));
@@ -116,7 +116,7 @@ static inline void pio_controller_init(
 	}
 
 	sm_config_set_in_pins(&config, input_pins);
-	sm_config_set_in_shift(&config, false, true, 32);
+	sm_config_set_in_shift(&config, true, true, 32);
 	sm_config_set_clkdiv(&config, freq);
 
 	pio_sm_init(pio, sm, offset, &config);

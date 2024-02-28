@@ -5,6 +5,7 @@
 #include <cli_task.h>
 #include <log.h>
 #include <usb.h>
+#include <pio_controllers.h>
 
 #include <pico/unique_id.h>
 #include <pico/cyw43_arch.h>
@@ -15,8 +16,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <algorithm>
-
-#include <pio_controller.h>
 
 using sctu::sys_log;
 
@@ -78,17 +77,29 @@ static void run(const char* line)
 	if (line[0] == 't')
 	{
 		printf("trigger...\r\n");
-		controllers.trigger();
+		auto result = controllers.poll();
+		for (size_t i = 0; i < 4; ++i)
+		{
+			if (result[i].connected)
+				printf("  P%i x = %i, y = %i, buttons = %u\r\n", i, result[i].x, result[i].y, result[i].buttons);
+		}
 	}
 
 	if (line[0] == 'c')
 	{
-		printf("Current controllers: %d\r\n", get_active_controllers());
-		unsigned controllers;
-		sscanf(line + 2, "%u", &controllers);
-		reset_configuration(controllers);
+		printf("Current controllers: %01X\r\n", usb_get_active_controllers());
+		int controllers;
+		sscanf(line + 2, "%i", &controllers);
+		if (controllers > 0)
+		{
+			usb_enable_controller(1 << (controllers - 1));
+		}
+		else if (controllers < 0)
+		{
+			usb_disable_controller(1 << (-controllers - 1));
+		}
 		vTaskDelay(1000);
-		printf("Updated controllers: %d\r\n", get_active_controllers());
+		printf("Updated controllers: %d\r\n", usb_get_active_controllers());
 	}
 }
 

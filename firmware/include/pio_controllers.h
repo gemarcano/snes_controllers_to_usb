@@ -31,7 +31,7 @@ namespace sctu
 			pio_controllers_init(pio_, offset0, offset1, 0, 100.0);
 		}
 
-		std::array<controller_state, 4> trigger()
+		std::array<controller_state, 4> poll()
 		{
 			pio_sm_put(pio_, 0, 0);
 			vTaskDelay(1); // FIXME is there a better way to block
@@ -43,6 +43,7 @@ namespace sctu
 				uint32_t data = pio_sm_get(pio_, i);
 				// Order:
 				// B Y SELECT START UP DOWN LEFT RIGHT A X L R ^ ^ ^ ^
+				// a low value signals that the button is pressed!
 				result[i] = controller_state {
 					.connected =
 						((data >> 24) & 1) &&
@@ -51,22 +52,22 @@ namespace sctu
 						((data >> 30) & 1)
 					,
 					.x = static_cast<int8_t>(
-						(data & (1 << 12)) ? -127 :
-						(data & (1 << 14)) ? 127 : 0
+						!(data & (1 << 12)) ? -127 :
+						!(data & (1 << 14)) ?  127 : 0
 					),
 					.y = static_cast<int8_t>(
-						(data & (1 << 8 )) ? 127 :
-						(data & (1 << 10)) ? -127 : 0
+						!(data & (1 <<  8)) ? -127 :
+						!(data & (1 << 10)) ?  127 : 0
 					),
 					.buttons = static_cast<uint8_t>(
-						((data >> 0) & 1) |
-						((data >> 2) & 1) << 1 |
-						((data >> 3) & 1) << 2 |
-						((data >> 4) & 1) << 3 |
-						((data >> 16) & 1) << 4 |
-						((data >> 18) & 1) << 5 |
-						((data >> 20) & 1) << 6|
-						((data >> 22) & 1) << 7
+						(!((data >>  0) & 1)) << 0 |
+						(!((data >>  2) & 1)) << 1 |
+						(!((data >>  4) & 1)) << 2 |
+						(!((data >>  6) & 1)) << 3 |
+						(!((data >> 16) & 1)) << 4 |
+						(!((data >> 18) & 1)) << 5 |
+						(!((data >> 20) & 1)) << 6 |
+						(!((data >> 22) & 1)) << 7
 					),
 				};
 			}

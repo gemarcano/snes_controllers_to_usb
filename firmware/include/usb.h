@@ -7,19 +7,21 @@
 
 #include <cstdint>
 
-/** Returns the number of configured USB HID controllers.
+/** Returns a bitmask describing the number of configured USB HID controllers.
  *
  * It is safe to call this from threads other than the USB one.
  *
- * @returns The number of configured controllers.
- */
-uint8_t get_active_controllers();
-
-/** Updates the number of configured USB HID controllers and forces a reset of
- * the USB interface.
+ * bit 0 -> Player 1
+ * bit 1 -> Player 2
+ * bit 2 -> Player 3
+ * bit 3 -> Player 4
  *
- * This requires that some other task is executing tud_task() in a loop.
+ * @returns A bitmask describing the number of configured controllers.
  */
-void reset_configuration(uint8_t controllers);
+uint8_t usb_get_active_controllers();
+
+void usb_enable_controller(uint8_t controller);
+
+void usb_disable_controller(uint8_t controller);
 
 #endif//SCTU_USB_H_
