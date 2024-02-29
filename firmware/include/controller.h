@@ -11,25 +11,13 @@ namespace sctu
 {
 	/** Represents SNES controller state.
 	 */
-	struct controller_state
+	struct controller
 	{
 		bool connected;
 		int8_t x;        // x axis, [-127, 127]
 		int8_t y;        // y axis, [-127, 127]
 		uint8_t buttons; // buttons, 8 buttons
-		bool operator==(const controller_state&) const = default;
-	};
-
-	class controller
-	{
-	public:
-		virtual controller_state poll() = 0;
-	};
-
-	class network_controller: public controller
-	{
-	public:
-		controller_state poll() override;
+		bool operator==(const controller&) const = default;
 	};
 }
 

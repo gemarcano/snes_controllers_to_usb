@@ -2,15 +2,13 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <log.h>
-#include <server.h>
 #include <cdc.h>
-#include <controller.h>
-#include <wifi_management_task.h>
-#include <network_task.h>
-#include <cli_task.h>
+#include <log.h>
 #include <usb.h>
+#include <server.h>
+#include <cli_task.h>
 #include <watchdog.h>
+#include <controller.h>
 #include <pio_controllers.h>
 
 #include <hardware/structs/mpu.h>
@@ -35,19 +33,6 @@ void print_callback(std::string_view str)
 	printf("syslog: %.*s\r\n", str.size(), str.data());
 }
 
-class random_controller : public sctu::controller
-{
-public:
-	sctu::controller_state poll() override
-	{
-		return sctu::controller_state{true, static_cast<int8_t>(dist(rdev)), static_cast<int8_t>(dist(rdev)), dist(rdev)};
-	}
-
-private:
-	std::random_device rdev;
-	std::uniform_int_distribution<uint8_t> dist{0u, 255u};
-};
-
 // FreeRTOS task to handle polling controller and sending HID reports
 void hid_task(void *)
 {
@@ -69,11 +54,11 @@ void hid_task(void *)
 
 	// FIXME wait for USB initialization
 	//
-	std::array<sctu::controller_state, 4> last_state = {};
+	std::array<sctu::controller, 4> last_state = {};
 	for (;;)
 	{
 		vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
-		std::array<sctu::controller_state, 4> state = controllers.poll();
+		std::array<sctu::controller, 4> state = controllers.poll();
 		uint8_t controller_ready = 0;
 		for (uint8_t i = 0; i < 4; ++i)
 		{
@@ -158,12 +143,12 @@ void init_task(void*)
 	// Anything USB related needs to be on the same core-- just use core 2
 	xTaskCreate(usb_device_task, "usb", 512, nullptr, tskIDLE_PRIORITY+1, &handle);
 	vTaskCoreAffinitySet(handle, (1 << 1) );
-	xTaskCreate(sctu::cli_task, "prb_cli", 512, nullptr, tskIDLE_PRIORITY+1, &handle);
-	vTaskCoreAffinitySet(handle, (1 << 1) );
 	xTaskCreate(hid_task, "controller", 512*2, nullptr, tskIDLE_PRIORITY+1, &handle);
 	vTaskCoreAffinitySet(handle, (1 << 1) );
-	xTaskCreate(sctu::wifi_management_task, "wifi", 512*4, nullptr, tskIDLE_PRIORITY+1, &handle);
-	vTaskCoreAffinitySet(handle, (1 << 1) );
+
+	// CLI doesn't need to be in the same core as USB...
+	xTaskCreate(sctu::cli_task, "prb_cli", 512, nullptr, tskIDLE_PRIORITY+1, &handle);
+	vTaskCoreAffinitySet(handle, (1 << 0) );
 
 	vTaskDelete(nullptr);
 	for(;;);

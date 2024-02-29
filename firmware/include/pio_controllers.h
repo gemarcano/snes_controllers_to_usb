@@ -31,20 +31,20 @@ namespace sctu
 			pio_controllers_init(pio_, offset0, offset1, 0, 100.0);
 		}
 
-		std::array<controller_state, 4> poll()
+		std::array<controller, 4> poll()
 		{
 			pio_sm_put(pio_, 0, 0);
 			vTaskDelay(1); // FIXME is there a better way to block
 						   // intelligently?
 
-			std::array<controller_state, 4> result;
+			std::array<controller, 4> result;
 			for (size_t i = 0; i < 4; ++i)
 			{
 				uint32_t data = pio_sm_get(pio_, i);
 				// Order:
 				// B Y SELECT START UP DOWN LEFT RIGHT A X L R ^ ^ ^ ^
 				// a low value signals that the button is pressed!
-				result[i] = controller_state {
+				result[i] = controller {
 					.connected =
 						((data >> 24) & 1) &&
 						((data >> 26) & 1) &&
