@@ -137,7 +137,7 @@ namespace sctu
 
 	private:
 		/// Atomic flag indicating whether the USB CDC device is connected.
-		std::atomic_bool connected_;
+		std::atomic_bool connected_ = false;
 	};
 
 	extern cdc_device cdc;

@@ -24,9 +24,9 @@ namespace sctu
 
 	void watchdog_cpu_task(void* status)
 	{
-		std::atomic_int &status_ = *reinterpret_cast<std::atomic_int*>(status);
 		for(;;)
 		{
+			std::atomic_int &status_ = *reinterpret_cast<std::atomic_int*>(status);
 			status_ = 1;
 			vTaskDelay(50);
 		}

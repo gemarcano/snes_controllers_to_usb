@@ -22,7 +22,7 @@ namespace sctu
 		pio_controllers& operator=(const pio_controllers&) = delete;
 		pio_controllers& operator=(pio_controllers&&) = delete;
 
-		pio_controllers(PIO pio)
+		explicit pio_controllers(PIO pio)
 		:pio_(pio)
 		{
 			uint offset0 = pio_add_program(pio_, &controller0_program);

@@ -19,7 +19,6 @@
 
 using sctu::sys_log;
 
-static sctu::pio_controllers controllers(pio0);
 static void run(const char* line)
 {
 	if (line[0] == 's')
@@ -32,10 +31,10 @@ static void run(const char* line)
 
 		int32_t rssi = 0;
 		cyw43_wifi_get_rssi(&cyw43_state, &rssi);
-		printf("  RSSI: %ld\r\n", rssi);
+		printf("  RSSI: %" PRIi32 "\r\n", rssi);
 		uint32_t pm_state = 0;
 		cyw43_wifi_get_pm(&cyw43_state, &pm_state);
-		printf("power mode: 0x%08lX\r\n", pm_state);
+		printf("power mode: 0x%08" PRIX32 "\r\n", pm_state);
 		printf("ticks: %lu\r\n", xTaskGetTickCount());
 		UBaseType_t number_of_tasks = uxTaskGetNumberOfTasks();
 		printf("Tasks active: %lu\r\n", number_of_tasks);
@@ -54,7 +53,7 @@ static void run(const char* line)
 		printf("log size: %u\r\n", sys_log.size());
 		for (size_t i = 0; i < sys_log.size(); ++i)
 		{
-			printf("log %u: %s\r\n", i, sys_log[i].c_str());
+			printf("log %zu: %s\r\n", i, sys_log[i].c_str());
 		}
 	}
 
@@ -74,32 +73,9 @@ static void run(const char* line)
 		for(;;);
 	}
 
-	if (line[0] == 't')
-	{
-		printf("trigger...\r\n");
-		auto result = controllers.poll();
-		for (size_t i = 0; i < 4; ++i)
-		{
-			if (result[i].connected)
-				printf("  P%i x = %i, y = %i, buttons = %u\r\n", i, result[i].x, result[i].y, result[i].buttons);
-		}
-	}
-
 	if (line[0] == 'c')
 	{
 		printf("Current controllers: %01X\r\n", usb_get_active_controllers());
-		int controllers;
-		sscanf(line + 2, "%i", &controllers);
-		if (controllers > 0)
-		{
-			usb_enable_controller(1 << (controllers - 1));
-		}
-		else if (controllers < 0)
-		{
-			usb_disable_controller(1 << (-controllers - 1));
-		}
-		vTaskDelay(1000);
-		printf("Updated controllers: %d\r\n", usb_get_active_controllers());
 	}
 }
 
@@ -107,7 +83,7 @@ namespace sctu
 {
 	void cli_task(void*)
 	{
-		char line[33] = {0};
+		std::array<char, 33> line = {0};
 		unsigned int pos = 0;
 		printf("> ");
 		for(;;)
@@ -120,7 +96,7 @@ namespace sctu
 				{
 					printf("\r\n");
 					line[pos] = '\0';
-					run(line);
+					run(line.data());
 					pos = 0;
 					printf("> ");
 					continue;

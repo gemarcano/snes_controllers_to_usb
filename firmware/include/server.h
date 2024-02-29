@@ -36,7 +36,7 @@ namespace sctu
 		 *
 		 * @param[in,out] sock Socket to take ownership over of.
 		 */
-		socket(int sock);
+		explicit socket(int sock);
 
 		/** Destructor.
 		 *
