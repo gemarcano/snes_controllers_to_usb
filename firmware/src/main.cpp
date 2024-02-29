@@ -137,13 +137,13 @@ void init_task(void*)
 	sys_log.register_push_callback(print_callback);
 
 	// Anything USB related needs to be on the same core-- just use core 2
-	xTaskCreate(usb_device_task, "usb", 512, nullptr, tskIDLE_PRIORITY+1, &handle);
+	xTaskCreate(usb_device_task, "sctu_usb", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
 	vTaskCoreAffinitySet(handle, (1 << 1) );
-	xTaskCreate(hid_task, "controller", 512*2, nullptr, tskIDLE_PRIORITY+1, &handle);
+	xTaskCreate(hid_task, "sctu_controller", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
 	vTaskCoreAffinitySet(handle, (1 << 1) );
 
 	// CLI doesn't need to be in the same core as USB...
-	xTaskCreate(sctu::cli_task, "prb_cli", 512, nullptr, tskIDLE_PRIORITY+1, &handle);
+	xTaskCreate(sctu::cli_task, "sctu_cli", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
 	vTaskCoreAffinitySet(handle, (1 << 0) );
 
 	vTaskDelete(nullptr);
@@ -165,7 +165,7 @@ int main()
 	// to do ANYTHING outside of a FreeRTOS task when using FreeRTOS with the
 	// pico-sdk... just do all required initialization in the init task
 	TaskHandle_t init_handle;
-	xTaskCreate(init_task, "prb_init", 512*4, nullptr, tskIDLE_PRIORITY+1, &init_handle);
+	xTaskCreate(init_task, "sctu_init", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &init_handle);
 	vTaskCoreAffinitySet(init_handle, (1 << 1) );
 	vTaskStartScheduler();
 	for(;;);

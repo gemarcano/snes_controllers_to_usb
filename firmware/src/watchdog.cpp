@@ -61,10 +61,10 @@ namespace sctu
 		// watchdog, or it will itself be hung, leading to a system reset.
 		for (size_t i = 0; i < cpu_cores; ++i)
 		{
-			xTaskCreate(watchdog_cpu_task, watchdog_task_names[i], 256, &watchdog_cpu_status[i], tskIDLE_PRIORITY+2, &handle);
+			xTaskCreate(watchdog_cpu_task, watchdog_task_names[i], configMINIMAL_STACK_SIZE, &watchdog_cpu_status[i], tskIDLE_PRIORITY+2, &handle);
 			vTaskCoreAffinitySet(handle, (1 << i) );
 		}
-		xTaskCreate(watchdog_task, "watchdog_core", 256, nullptr, tskIDLE_PRIORITY+2, &handle);
+		xTaskCreate(watchdog_task, "watchdog_core", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+2, &handle);
 		vTaskCoreAffinitySet(handle, (1 << 0) | (1 << 1) );
 	}
 }
