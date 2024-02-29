@@ -125,18 +125,14 @@ static void initialize_mpu()
 
 void init_task(void*)
 {
-	board_init();
-
 	// This is running on core 2, setup MPU to catch null pointer dereferences
 	initialize_mpu();
-
-	TaskHandle_t handle;
-
+	board_init();
 	sctu::initialize_watchdog_tasks();
-
 	sys_log.register_push_callback(print_callback);
 
 	// Anything USB related needs to be on the same core-- just use core 2
+	TaskHandle_t handle;
 	xTaskCreate(usb_device_task, "sctu_usb", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
 	vTaskCoreAffinitySet(handle, (1 << 1) );
 	xTaskCreate(hid_task, "sctu_controller", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
