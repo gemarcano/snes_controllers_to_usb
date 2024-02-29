@@ -54,6 +54,19 @@ void hid_task(void *)
 	TickType_t last = xTaskGetTickCount();
 	sctu::pio_controllers controllers(pio0);
 
+	gpio_init_mask(
+		(1u << 14) |
+			(1u << 15) |
+			(1u << 16) |
+			(1u << 17)
+	);
+	gpio_set_dir_out_masked(
+		(1u << 14) |
+			(1u << 15) |
+			(1u << 16) |
+			(1u << 17)
+	);
+
 	// FIXME wait for USB initialization
 	//
 	std::array<sctu::controller_state, 4> last_state = {};
@@ -61,6 +74,7 @@ void hid_task(void *)
 	{
 		vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
 		std::array<sctu::controller_state, 4> state = controllers.poll();
+		uint8_t controller_ready = 0;
 		for (uint8_t i = 0; i < 4; ++i)
 		{
 			if (last_state[i].connected != state[i].connected)
@@ -69,9 +83,10 @@ void hid_task(void *)
 					usb_enable_controller(1 << i);
 				else
 					usb_disable_controller(1 << i);
+				gpio_put(14 + i, state[i].connected);
 			}
 
-			if (state[i].connected && tud_hid_n_ready(i))
+			if (state[i].connected && tud_hid_n_ready(controller_ready))
 			{
 				// Remote wakeup only if it's suspended, and a button is pressed
 				if (tud_suspended() && (state[i].x || state[i].y || state[i].buttons))
@@ -90,8 +105,9 @@ void hid_task(void *)
 					buffer[0] = state[i].x;
 					buffer[1] = state[i].y;
 					buffer[2] = state[i].buttons;
-					tud_hid_n_report(i, 0, &buffer, sizeof(buffer));
+					tud_hid_n_report(controller_ready, 0, &buffer, sizeof(buffer));
 				}
+				controller_ready++;
 			}
 			last_state[i] = state[i];
 		}

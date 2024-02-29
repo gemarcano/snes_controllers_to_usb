@@ -21,6 +21,7 @@
 ; at 12us period, that's 83333 Hz
 ; With rp2040 clocked at 125MHz, 1/100 gets us 15 cycles per 12us period.
 
+; Primary controller program, it drives LATCH and CLK and polls P1
 .program controller0
 .side_set 1 ; CLK
 
@@ -28,33 +29,39 @@
 
 .wrap_target
 ; Wait for trigger from software
-pull			side 1
-irq 4			side 1
+pull						side 1
+irq 4						side 1
 
 ; Trigger latch, keep CLK high
-set pins, 1 [14]	side 1
-set pins, 0 [13]	side 1
+set pins, 1			[14]	side 1
+set pins, 0			[13]	side 1
 
 ; setup counter for 16 shifts
-set x, 15		side 1
+set x, 15					side 1
 
 read_loop:
-in pins, 2 [15]		side 0
-jmp x-- read_loop [15]	side 1
+in pins, 2			[14]	side 0
+jmp x-- read_loop	[14]	side 1
 
 .wrap
 
+
+; Secondary controller program, it waits for an OK from the primary, then polls
+; the other controllers. It needs to be in sync with the primary, as the
+; primary is managing CLK
 .program controllers1_3
 .wrap_target
-wait 1 irq 4 		[1]
+wait 1 irq 4		[13]
 
-set x, 15
+; setup counter for 16 shifts
+set x, 15			[14]
 
 read_loop:
-in pins, 2 [15]
-jmp x-- read_loop [15]
+in pins, 2			[14]
+jmp x-- read_loop	[14]
 
 .wrap
+
 
 % c-sdk {
 #include <hardware/gpio.h>
@@ -65,7 +72,6 @@ static inline void pio_controller_init(
 	uint pin,
 	float freq)
 {
-
 	uint input_pins;
 	pio_sm_config config;
 	if (sm == 0)
