@@ -10,13 +10,10 @@ pico_sdk_init()
 add_executable(snes_controllers_to_usb
 	src/main.cpp
 	src/log.cpp
-	src/server.cpp
-	src/network_task.cpp
 	src/cli_task.cpp
 	src/FreeRTOS_support.cpp
 	src/usb_descriptors.cpp
 	src/syscalls.cpp
-	src/wifi_management_task.cpp
 	src/watchdog.cpp
 )
 
@@ -25,12 +22,12 @@ pico_generate_pio_header(snes_controllers_to_usb
 )
 
 target_link_libraries(snes_controllers_to_usb
-	pico_cyw43_arch_lwip_sys_freertos
 	pico_stdlib
 	pico_rand
 	FreeRTOS-Kernel-Heap4
 	tinyusb_device
 	tinyusb_board
+	hardware_pio
 )
 
 target_compile_options(snes_controllers_to_usb PRIVATE

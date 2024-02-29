@@ -5,15 +5,12 @@
 #include <cdc.h>
 #include <log.h>
 #include <usb.h>
-#include <server.h>
 #include <cli_task.h>
 #include <watchdog.h>
 #include <controller.h>
 #include <pio_controllers.h>
 
 #include <hardware/structs/mpu.h>
-
-#include <lwip/netdb.h>
 
 #include <tusb_config.h>
 #include <tusb.h>
@@ -24,7 +21,6 @@
 #include <task.h>
 
 #include <cstdio>
-#include <random>
 
 using sctu::sys_log;
 

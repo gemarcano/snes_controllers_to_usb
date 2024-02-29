@@ -8,7 +8,6 @@
 #include <pio_controllers.h>
 
 #include <pico/unique_id.h>
-#include <pico/cyw43_arch.h>
 #include <pico/bootrom.h>
 #include <hardware/watchdog.h>
 #include <tusb.h>
