@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
+#include <sctu/watchdog.h>
+
 #include <hardware/watchdog.h>
 
 #include <FreeRTOS.h>

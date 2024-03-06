@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <log.h>
-#include <syslog.h>
+#include <sctu/log.h>
+#include <sctu/syslog.h>
 
 namespace sctu
 {

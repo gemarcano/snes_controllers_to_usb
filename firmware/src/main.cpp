@@ -2,13 +2,13 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <cdc.h>
-#include <log.h>
-#include <usb.h>
-#include <cli_task.h>
-#include <watchdog.h>
-#include <controller.h>
-#include <pio_controllers.h>
+#include <sctu/cdc.h>
+#include <sctu/log.h>
+#include <sctu/usb.h>
+#include <sctu/cli_task.h>
+#include <sctu/watchdog.h>
+#include <sctu/controller.h>
+#include <sctu/pio_controllers.h>
 
 #include <hardware/structs/mpu.h>
 

@@ -5,7 +5,7 @@
 #ifndef SCTU_PIO_CONTROLLER_H_
 #define SCTU_PIO_CONTROLLER_H_
 
-#include <controller.h>
+#include <sctu/controller.h>
 #include <controllers.pio.h>
 
 #include <hardware/pio.h>

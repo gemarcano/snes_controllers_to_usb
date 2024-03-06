@@ -2,10 +2,10 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <cli_task.h>
-#include <log.h>
-#include <usb.h>
-#include <pio_controllers.h>
+#include <sctu/cli_task.h>
+#include <sctu/log.h>
+#include <sctu/usb.h>
+#include <sctu/pio_controllers.h>
 
 #include <pico/unique_id.h>
 #include <pico/bootrom.h>

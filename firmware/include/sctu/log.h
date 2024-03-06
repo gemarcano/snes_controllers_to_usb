@@ -5,7 +5,7 @@
 #ifndef LOG_H_
 #define LOG_H_
 
-#include <syslog.h>
+#include <sctu/syslog.h>
 
 namespace sctu
 {

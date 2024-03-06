@@ -2,8 +2,9 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
+#include <sctu/cdc.h>
+
 #include <tusb.h>
-#include <cdc.h>
 
 #include <cerrno>
 #include <span>
