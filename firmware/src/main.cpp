@@ -24,49 +24,48 @@
 
 using sctu::sys_log;
 
-void print_callback(std::string_view str)
+static void print_callback(std::string_view str)
 {
 	printf("syslog: %.*s\r\n", str.size(), str.data());
 }
 
+constexpr const std::array<int, 4> led_gpios { 14, 15, 16, 17 };
+
 // FreeRTOS task to handle polling controller and sending HID reports
-void hid_task(void *)
+static void hid_task(void*)
 {
 	TickType_t last = xTaskGetTickCount();
 	sctu::pio_controllers controllers(pio0);
 
-	gpio_init_mask(
-		(1u << 14) |
-			(1u << 15) |
-			(1u << 16) |
-			(1u << 17)
-	);
-	gpio_set_dir_out_masked(
-		(1u << 14) |
-			(1u << 15) |
-			(1u << 16) |
-			(1u << 17)
-	);
+	// Initialize LED GPIOs
+	for (int led: led_gpios)
+	{
+		gpio_init(led);
+		gpio_set_dir(led, true);
+	}
 
-	// FIXME wait for USB initialization
-	//
 	std::array<sctu::controller, 4> last_state = {};
 	for (;;)
 	{
 		vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
-		std::array<sctu::controller, 4> state = controllers.poll();
+		const std::array<sctu::controller, 4> state = controllers.poll();
+		// Keep track of the number of controllers configured, used to index
+		// tinyusb devices
 		uint8_t controller_ready = 0;
 		for (uint8_t i = 0; i < 4; ++i)
 		{
+			// Update USB controller state if there's a change
 			if (last_state[i].connected != state[i].connected)
 			{
 				if (state[i].connected)
 					usb_enable_controller(1 << i);
 				else
 					usb_disable_controller(1 << i);
-				gpio_put(14 + i, state[i].connected);
+				gpio_put(led_gpios[i], state[i].connected);
 			}
 
+			// Only bother updating the tinyusb report if tinyusb is ready and
+			// we're connected.
 			if (state[i].connected && tud_hid_n_ready(controller_ready))
 			{
 				// Remote wakeup only if it's suspended, and a button is pressed
@@ -96,7 +95,7 @@ void hid_task(void *)
 }
 
 // FreeRTOS task to handle USB tasks
-void usb_device_task(void *)
+static void usb_device_task(void*)
 {
 	tusb_init();
 	for(;;)
@@ -123,46 +122,95 @@ static void initialize_mpu()
 		| 0x10000000; // Disable instruction fetch, disallow all
 }
 
-void init_task(void*)
+static void init_cpu_task(void* val)
 {
-	// This is running on core 2, setup MPU to catch null pointer dereferences
+	std::atomic_bool *cpu_init = reinterpret_cast<std::atomic_bool*>(val);
 	initialize_mpu();
-	board_init();
-	sctu::initialize_watchdog_tasks();
-	sys_log.register_push_callback(print_callback);
-
-	// Anything USB related needs to be on the same core-- just use core 2
-	TaskHandle_t handle;
-	xTaskCreate(usb_device_task, "sctu_usb", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
-	vTaskCoreAffinitySet(handle, (1 << 1) );
-	xTaskCreate(hid_task, "sctu_controller", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
-	vTaskCoreAffinitySet(handle, (1 << 1) );
-
-	// CLI doesn't need to be in the same core as USB...
-	xTaskCreate(sctu::cli_task, "sctu_cli", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &handle);
-	vTaskCoreAffinitySet(handle, (1 << 0) );
-
+	*cpu_init = true;
 	vTaskDelete(nullptr);
 	for(;;);
 }
 
-extern "C" void vApplicationStackOverflowHook(
-	TaskHandle_t /*xTask*/, char * /*pcTaskName*/)
+static void init_task(void*)
 {
-	__asm__ __volatile__ ("bkpt #0");
+	std::array<std::atomic_bool, 2> cpu_init = {};
+	xTaskCreateAffinitySet(
+		init_cpu_task,
+		"sctu_cpu0_init",
+		configMINIMAL_STACK_SIZE,
+		&cpu_init[0],
+		tskIDLE_PRIORITY+1,
+		1 << 0,
+		nullptr);
+
+	xTaskCreateAffinitySet(
+		init_cpu_task,
+		"sctu_cpu1_init",
+		configMINIMAL_STACK_SIZE,
+		&cpu_init[1],
+		tskIDLE_PRIORITY+1,
+		1 << 1,
+		nullptr);
+
+	// Wait until CPU init tasks are done
+	while(!cpu_init[0] || !cpu_init[1])
+	{
+		taskYIELD();
+	}
+
+	// We're not calling board_init() since for our configuration, all it is
+	// really doing is initializing UART, which... we're not using at all.
+	sctu::initialize_watchdog_tasks();
+	sys_log.register_push_callback(print_callback);
+
+	// Anything USB related needs to be on the same core-- just use core 2
+	xTaskCreateAffinitySet(
+		usb_device_task,
+		"sctu_usb",
+		configMINIMAL_STACK_SIZE*2,
+		nullptr,
+		tskIDLE_PRIORITY+1,
+		1 << 1,
+		nullptr);
+
+	xTaskCreateAffinitySet(
+		hid_task,
+		"sctu_controller",
+		configMINIMAL_STACK_SIZE,
+		nullptr,
+		tskIDLE_PRIORITY+1,
+		1 << 1,
+		nullptr);
+
+	// CLI doesn't need to be in the same core as USB...
+	xTaskCreateAffinitySet(
+		sctu::cli_task,
+		"sctu_cli",
+		configMINIMAL_STACK_SIZE*2,
+		nullptr,
+		tskIDLE_PRIORITY+1,
+		1 << 0,
+		nullptr);
+
+	// ...and kill this init task as it's done.
+	vTaskDelete(nullptr);
+	for(;;);
 }
 
 int main()
 {
-	// This is running on core 1, setup MPU to catch null pointer dereferences
-	initialize_mpu();
-
 	// Alright, based on reading the pico-sdk, it's pretty much just a bad idea
 	// to do ANYTHING outside of a FreeRTOS task when using FreeRTOS with the
 	// pico-sdk... just do all required initialization in the init task
-	TaskHandle_t init_handle;
-	xTaskCreate(init_task, "sctu_init", configMINIMAL_STACK_SIZE, nullptr, tskIDLE_PRIORITY+1, &init_handle);
-	vTaskCoreAffinitySet(init_handle, (1 << 1) );
+	xTaskCreateAffinitySet(
+		init_task,
+		"sctu_init",
+		configMINIMAL_STACK_SIZE,
+		nullptr,
+		tskIDLE_PRIORITY+1,
+		(1 << 0) | (1 << 1),
+		nullptr);
+
 	vTaskStartScheduler();
 	for(;;);
 	return 0;

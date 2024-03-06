@@ -36,4 +36,10 @@ extern "C"
 		*timer_task_stack = task_stack;
 		*timer_stack_size = sizeof(task_stack)/sizeof(*task_stack);
 	}
+
+	void vApplicationStackOverflowHook(
+		TaskHandle_t /*xTask*/, char * /*pcTaskName*/)
+	{
+		__asm volatile ("bkpt #0");
+	}
 }
