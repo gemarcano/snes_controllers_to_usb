@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#ifndef LOG_H_
-#define LOG_H_
+#ifndef SCTU_LOG_H_
+#define SCTU_LOG_H_
 
 #include <sctu/syslog.h>
 
@@ -12,4 +12,4 @@ namespace sctu
 	extern safe_syslog<syslog<1024*128>> sys_log;
 }
 
-#endif//LOG_H_
+#endif//SCTU_LOG_H_

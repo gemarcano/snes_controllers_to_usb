@@ -15,6 +15,7 @@ add_executable(snes_controllers_to_usb
 	src/usb_descriptors.cpp
 	src/syscalls.cpp
 	src/watchdog.cpp
+	src/cdc_device.cpp
 )
 
 pico_generate_pio_header(snes_controllers_to_usb

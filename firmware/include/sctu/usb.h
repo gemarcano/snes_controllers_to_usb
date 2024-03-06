@@ -20,8 +20,18 @@
  */
 uint8_t usb_get_active_controllers();
 
+/** Enables the specified controller's HID interface.
+ *
+ * @param[in] The index of the controller to initialize, starting at 0 (e.g.
+ *  P1 == 0, P2 == 1, etc.).
+ */
 void usb_enable_controller(uint8_t controller);
 
+/** Disables the specified controller's HID interface.
+ *
+ * @param[in] The index of the controller to disable, starting at 0 (e.g.
+ *  P1 == 0, P2 == 1, etc.).
+ */
 void usb_disable_controller(uint8_t controller);
 
 #endif//SCTU_USB_H_

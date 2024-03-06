@@ -2,12 +2,12 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#ifndef CLI_TASK_H_
-#define CLI_TASK_H_
+#ifndef SCTU_CLI_TASK_H_
+#define SCTU_CLI_TASK_H_
 
 namespace sctu
 {
 	void cli_task(void*);
 }
 
-#endif//CLI_TASK_H_
+#endif//SCTU_CLI_TASK_H_

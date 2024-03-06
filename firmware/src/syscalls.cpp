@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <sctu/cdc.h>
+#include <sctu/cdc_device.h>
 
 #include <tusb.h>
 
@@ -39,11 +39,6 @@ namespace __gnu_cxx
 			__asm__ __volatile__ ("bkpt #0");
 		}
 	}
-}
-
-namespace sctu
-{
-	cdc_device cdc;
 }
 
 // Apparently, if I don't declare this function as used, LTO gets rid of it...

@@ -2,19 +2,10 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#ifndef CDC_H_
-#define CDC_H_
+#ifndef SCTU_IO_DEVICE_H_
+#define SCTU_IO_DEVICE_H_
 
-#include <cstdint>
-#include <atomic>
-#include <array>
 #include <span>
-
-#include <tusb.h>
-
-#include <errno.h>
-#undef errno
-extern int errno;
 
 namespace sctu
 {
@@ -67,80 +58,6 @@ namespace sctu
 		 */
 		virtual int read(std::span<unsigned char> buffer) = 0;
 	};
-
-	/** IO device representing a TinyUSB CDC serial connection.
-	 */
-	class cdc_device : public io_device
-	{
-	public:
-		bool open() override
-		{
-			while(!connected_);
-			return true;
-		}
-
-		bool close() override
-		{
-			return true;
-		}
-
-		/** Updates the connected status of the TinyUSB CDC device.
-		 *
-		 * This can be called from multiple threads.
-		 */
-		void update()
-		{
-			connected_ = tud_cdc_connected();
-		}
-
-		int write(std::span<const unsigned char> data) override
-		{
-			if (!connected_)
-			{
-				errno = ENXIO;
-				return -1;
-			}
-
-			if (tud_cdc_write_available() == 0)
-			{
-				tud_task();
-				tud_cdc_write_flush();
-			}
-
-			uint32_t result = tud_cdc_write(data.data(), data.size());
-			tud_cdc_write_flush();
-			return static_cast<int>(result);
-		}
-
-		int read(std::span<unsigned char> buffer) override
-		{
-			if (!connected_)
-			{
-				errno = ENXIO;
-				return -1;
-			}
-
-			while(!tud_cdc_available())
-			{
-				// FIXME some kind of yield?
-			}
-
-			// There is data available
-			size_t read_;
-			for (read_ = 0; read_ < buffer.size() && tud_cdc_available();)
-			{
-				// read and echo back
-				read_ += tud_cdc_read(buffer.data() + read_, buffer.size() - read_);
-			}
-			return static_cast<int>(read_);
-		}
-
-	private:
-		/// Atomic flag indicating whether the USB CDC device is connected.
-		std::atomic_bool connected_ = false;
-	};
-
-	extern cdc_device cdc;
 }
 
-#endif//CDC_H_
+#endif//SCTU_IO_DEVICE_H_

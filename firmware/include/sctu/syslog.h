@@ -2,8 +2,8 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#ifndef SYSLOG_H_
-#define SYSLOG_H_
+#ifndef SCTU_SYSLOG_H_
+#define SCTU_SYSLOG_H_
 
 #include <deque>
 #include <string_view>
@@ -197,4 +197,4 @@ namespace sctu
 	};
 }
 
-#endif//SYSLOG_H_
+#endif//SCTU_SYSLOG_H_

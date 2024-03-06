@@ -23,6 +23,7 @@ static void run(const char* line)
 	if (line[0] == 's')
 	{
 		printf("ticks: %lu\r\n", xTaskGetTickCount());
+		printf("Heap: %u\r\n", xPortGetFreeHeapSize());
 		UBaseType_t number_of_tasks = uxTaskGetNumberOfTasks();
 		printf("Tasks active: %lu\r\n", number_of_tasks);
 		std::vector<TaskStatus_t> tasks(number_of_tasks);

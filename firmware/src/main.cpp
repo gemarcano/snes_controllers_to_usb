@@ -2,11 +2,11 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <sctu/cdc.h>
 #include <sctu/log.h>
 #include <sctu/usb.h>
 #include <sctu/cli_task.h>
 #include <sctu/watchdog.h>
+#include <sctu/cdc_device.h>
 #include <sctu/controller.h>
 #include <sctu/pio_controllers.h>
 

@@ -14,14 +14,25 @@
 
 namespace sctu
 {
+	/** Manages the 4 controller hub implemented over PIO.
+	 */
 	class pio_controllers
 	{
 	public:
+		/** Not copyable.
+		 * @{
+		 */
 		pio_controllers(const pio_controllers&) = delete;
-		pio_controllers(pio_controllers&&) = delete;
 		pio_controllers& operator=(const pio_controllers&) = delete;
-		pio_controllers& operator=(pio_controllers&&) = delete;
+		/** @} */
 
+		/** Constructor.
+		 *
+		 * Initializes the given PIO with the necessary programs and starts
+		 * them to control the 4 SNES controller hub.
+		 *
+		 * @param[in,out] pio PIO instance to program and control.
+		 */
 		explicit pio_controllers(PIO pio)
 		:pio_(pio)
 		{
@@ -31,6 +42,10 @@ namespace sctu
 			pio_controllers_init(pio_, offset0, offset1, 0, 100.0);
 		}
 
+		/** Poll the SNES controller hub.
+		 *
+		 * @returns The current state of the hub, one state per controller.
+		 */
 		std::array<controller, 4> poll()
 		{
 			pio_sm_put(pio_, 0, 0);
