@@ -41,7 +41,7 @@ static void run(const char* line)
 		printf("log size: %u\r\n", sys_log.size());
 		for (size_t i = 0; i < sys_log.size(); ++i)
 		{
-			printf("log %zu: %s\r\n", i, sys_log[i].c_str());
+			printf("log %u: %s\r\n", i, sys_log[i].c_str());
 		}
 	}
 

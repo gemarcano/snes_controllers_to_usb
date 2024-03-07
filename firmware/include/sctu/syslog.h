@@ -5,16 +5,16 @@
 #ifndef SCTU_SYSLOG_H_
 #define SCTU_SYSLOG_H_
 
+#include <FreeRTOS.h>
+#include <semphr.h>
+
+#include <sys/time.h>
+
 #include <deque>
 #include <string_view>
 #include <cstddef>
 #include <functional>
-#include <format>
-
-#include <sys/time.h>
-
-#include <FreeRTOS.h>
-#include <semphr.h>
+#include <string>
 
 namespace sctu
 {
@@ -83,7 +83,12 @@ namespace sctu
 		std::string operator[](size_t index) const
 		{
 			auto& log = logs_[index];
-			return std::format("{}.{:0^6} - {}", log.time.tv_sec, log.time.tv_usec, log.record);
+			std::string decimal = std::to_string(log.time.tv_usec);
+			// Build a string of the form of:
+			// [seconds].[decimals, 6 digits] - [log  contents]
+			return std::to_string(log.time.tv_sec) + "." +
+				std::string(6u - std::min(6u, decimal.length()), '0') +
+				decimal + " - " + log.record;
 		}
 
 		/** Returns the last log inserted.
