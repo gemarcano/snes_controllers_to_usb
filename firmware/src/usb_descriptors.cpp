@@ -28,6 +28,9 @@
 
 #include <pico/unique_id.h>
 
+#include <FreeRTOS.h>
+#include <task.h>
+
 #include <array>
 #include <cstdint>
 #include <string_view>
@@ -35,8 +38,6 @@
 #include <vector>
 #include <atomic>
 #include <span>
-#include <sstream>
-#include <iomanip>
 #include <memory>
 #include <bit>
 
@@ -154,7 +155,7 @@ enum
 const constexpr int EPNUM_CDC_NOTIF = 0x81;
 const constexpr int EPNUM_CDC_OUT   = 0x02;
 const constexpr int EPNUM_CDC_IN    = 0x82;
-const constexpr int EPNUM_HID_BASE       = 0x03;
+const constexpr int EPNUM_HID_BASE  = 0x03;
 
 void update_configuration(uint8_t controller_bitmask)
 {
@@ -225,9 +226,6 @@ uint8_t usb_get_active_controllers()
 {
 	return active_controllers;
 }
-
-#include <FreeRTOS.h>
-#include <task.h>
 
 void usb_enable_controller(uint8_t controller)
 {
@@ -344,16 +342,21 @@ private:
 	{
 		pico_unique_board_id_t id;
 		pico_get_unique_board_id(&id);
-		std::stringstream ss;
-		for (size_t i = 0; i < PICO_UNIQUE_BOARD_ID_SIZE_BYTES; ++i)
-		{
-			ss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(id.id[i]);
-		}
 
-		const auto id_string = ss.str();
-		for (size_t i = 0; i < id_string.length(); ++i)
+		// Convert ID to a hex string, don't bother using stringstream as that
+		// pulls in way, way too much code.
+		for (size_t i = 0; i < sizeof(id.id); ++i)
 		{
-			data[i] = to_little_endian(static_cast<uint16_t>(id_string[i]));
+			unsigned char byte = id.id[i];
+			for (size_t j = 0; j < 2; ++j)
+			{
+				unsigned char nibble = (byte >> (4*j)) & 0xF;
+				if (nibble < 10)
+					nibble = '0' + nibble;
+				else
+					nibble = 'A' + (nibble - 10);
+				data[2*i + j] = to_little_endian(static_cast<uint16_t>(nibble));
+			}
 		}
 	}
 
