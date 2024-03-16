@@ -3,7 +3,7 @@
 /// @file
 
 #include <sctu/cli_task.h>
-#include <sctu/log.h>
+#include <gpico/log.h>
 #include <sctu/usb.h>
 #include <sctu/pio_controllers.h>
 
@@ -16,7 +16,7 @@
 #include <cstdio>
 #include <algorithm>
 
-using sctu::sys_log;
+using gpico::sys_log;
 
 static void run(const char* line)
 {

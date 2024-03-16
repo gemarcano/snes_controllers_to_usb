@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.20)
 
 include(pico_sdk_import.cmake)
 include(FreeRTOS_Kernel_import.cmake)
+include(gpico_import.cmake)
 
 project(snes_controllers_to_usb)
 
@@ -9,13 +10,8 @@ pico_sdk_init()
 
 add_executable(snes_controllers_to_usb
 	src/main.cpp
-	src/log.cpp
 	src/cli_task.cpp
-	src/FreeRTOS_support.cpp
 	src/usb_descriptors.cpp
-	src/syscalls.cpp
-	src/watchdog.cpp
-	src/cdc_device.cpp
 )
 
 pico_generate_pio_header(snes_controllers_to_usb
@@ -29,6 +25,7 @@ target_link_libraries(snes_controllers_to_usb
 	tinyusb_device
 	tinyusb_board
 	hardware_pio
+	gpico
 )
 
 target_compile_options(snes_controllers_to_usb PRIVATE

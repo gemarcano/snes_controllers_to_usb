@@ -2,11 +2,11 @@
 // SPDX-FileCopyrightText: Gabriel Marcano, 2024
 /// @file
 
-#include <sctu/log.h>
+#include <gpico/log.h>
 #include <sctu/usb.h>
 #include <sctu/cli_task.h>
-#include <sctu/watchdog.h>
-#include <sctu/cdc_device.h>
+#include <gpico/watchdog.h>
+#include <gpico/cdc_device.h>
 #include <sctu/controller.h>
 #include <sctu/pio_controllers.h>
 
@@ -22,7 +22,7 @@
 
 #include <cstdio>
 
-using sctu::sys_log;
+using gpico::sys_log;
 
 static void print_callback(std::string_view str)
 {
@@ -106,7 +106,7 @@ static void usb_device_task(void*)
 		// functions. See https://github.com/hathach/tinyusb/issues/1472
 		// As a workaround, use an atomic variable to get the result of this
 		// function, and read from it elsewhere
-		sctu::cdc.update();
+		gpico::cdc.update();
 		taskYIELD();
 	}
 }
@@ -160,7 +160,7 @@ static void init_task(void*)
 
 	// We're not calling board_init() since for our configuration, all it is
 	// really doing is initializing UART, which... we're not using at all.
-	sctu::initialize_watchdog_tasks();
+	gpico::initialize_watchdog_tasks();
 	sys_log.register_push_callback(print_callback);
 
 	// Anything USB related needs to be on the same core-- just use core 2
